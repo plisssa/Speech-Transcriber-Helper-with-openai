@@ -1,0 +1,68 @@
+import json
+import openai
+openai.api_key = ''
+
+def process_file(filename):
+    with open(filename, 'r', encoding='utf-8') as file:
+        data = json.load(file)
+
+    dialogue_f = {"c1": data["c1"], "c2": data["c2"]}
+    return dialogue_f
+
+if __name__ == "__main__":
+    filename = "/lanius_audio/external-362-79633591238-20230417-144950-1681732190.4727.txt"
+    dialogue_f = process_file(filename)
+
+def prepare_input(script, call):
+
+    dialog = [{"role": "system", "content": "Вы - клиент."},
+              {"role": "user", "content": script},
+              {"role": "assistant", "content": call}]
+
+
+    max_tokens = 4096 - len(json.dumps(dialog))  # максимальный контекст для модели
+
+    call_json = json.loads(call)
+    for key in call_json.keys():
+        call_json[key] = call_json[key][:20] 
+
+    call_str = json.dumps(call_json)
+
+    input_texts = []
+    while len(call_str) > max_tokens:
+        input_texts.append(json.dumps(dialog + [{"role": "user", "content": call_str[:max_tokens]}]))
+        call_str = call_str[max_tokens:]
+    input_texts.append(json.dumps(dialog + [{"role": "user", "content": call_str}]))
+
+    return input_texts
+
+def get_answer(input_text):
+
+    params = {
+        "engine": "text-davinci-003",
+        "prompt": input_text, 
+        "max_tokens": 100,  
+        "temperature": 0.7,  #разнообразие ответа
+        "stop": ["\n"],  #останавливаю генерацию ответа после первой строки
+    }
+
+    # Получаем ответ от OpenAI API
+    response = openai.Completion.create(**params)
+
+
+    answer = response["choices"][0]["text"].strip()
+
+    return answer
+
+def main():
+    script = "В этом диалоге оператор представился?"
+    call_json = dialogue_f
+
+    input_texts = prepare_input(script, json.dumps(call_json))
+    answers = [get_answer(input_text) for input_text in input_texts]
+
+    print(f"Вопрос: {script}")
+    print(f"Ответы: {answers}")
+
+if __name__ == "__main__":
+    main()
